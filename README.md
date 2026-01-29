@@ -609,26 +609,6 @@ aws bedrock-runtime invoke-model \
 journalctl --user -u clawdbot-gateway -n 100
 ```
 
-## Project Structure
-
-```
-clawdbot-aws-bedrock/
-├── README.md                          # This file
-├── cloudformation/
-│   └── clawdbot-bedrock.yaml         # Main CloudFormation template
-├── scripts/
-│   ├── bedrock-precheck.sh           # Pre-deployment check script
-│   └── deploy.sh                     # Deployment helper script
-├── lambda/
-│   └── precheck/
-│       ├── index.py                  # Lambda pre-check function
-│       └── requirements.txt          # Python dependencies
-└── docs/
-    ├── DEPLOYMENT.md                 # Detailed deployment guide
-    ├── SECURITY.md                   # Security best practices
-    └── TROUBLESHOOTING.md            # Common issues and solutions
-```
-
 ## Comparison with Original Moltbot
 
 ### Local Deployment (Original)
@@ -678,6 +658,6 @@ This deployment template is provided as-is. Clawdbot itself is licensed under it
 
 ---
 
-**Built by builder + Kiro for AWS customers and partners**
+**Built by builder + Kiro**
 
 Deploy your personal AI assistant on AWS infrastructure you control.
