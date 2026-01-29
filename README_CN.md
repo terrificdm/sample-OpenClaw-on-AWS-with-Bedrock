@@ -412,20 +412,6 @@ CreateVPCEndpoints: false  # 成本优化
 - [安全最佳实践](SECURITY.md) - 安全配置
 - [故障排查](TROUBLESHOOTING.md) - 常见问题解决
 
-## 项目文件
-
-```
-clawdbot-aws-bedrock/
-├── README.md                    主文档（英文）
-├── README_CN.md                 主文档（中文）
-├── clawdbot-bedrock.yaml        CloudFormation 模板
-├── deploy.sh                    部署脚本
-├── index.py                     Lambda 预检查函数
-├── DEPLOYMENT.md                部署指南
-├── SECURITY.md                  安全实践
-├── TROUBLESHOOTING.md           故障排查
-└── ...
-```
 
 ## 安全特性
 
@@ -608,6 +594,4 @@ Clawdbot 本身有独立的许可证。参见 [Clawdbot License](https://github.
 
 ---
 
-**Built by builder + Kiro for AWS customers and partners**
-
-在你控制的 AWS 基础设施上部署个人 AI 助手 🦞
+**Built by builder + Kiro**
