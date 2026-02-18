@@ -814,7 +814,7 @@ aws cloudformation create-stack \
   --template-body file://clawdbot-bedrock.yaml \
   --parameters \
     ParameterKey=KeyPairName,ParameterValue=<KEY_NAME> \
-    ParameterKey=ClawdbotModel,ParameterValue=<MODEL_ID> \
+    ParameterKey=OpenClawModel,ParameterValue=<MODEL_ID> \
     ParameterKey=InstanceType,ParameterValue=<INSTANCE_TYPE> \
     ParameterKey=CreateVPCEndpoints,ParameterValue=<true/false> \
   --capabilities CAPABILITY_IAM \

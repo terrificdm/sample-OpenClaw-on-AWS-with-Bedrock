@@ -451,7 +451,7 @@ Cost: ~$0.01/request | Time: 2-5s | Security: Private network
 
 ```yaml
 # In CloudFormation parameters
-ClawdbotModel:
+OpenClawModel:
   - global.amazon.nova-2-lite-v1:0              # Default, most cost-effective
   - global.anthropic.claude-sonnet-4-5-20250929-v1:0  # Most capable
   - us.amazon.nova-pro-v1:0                     # Balanced performance
