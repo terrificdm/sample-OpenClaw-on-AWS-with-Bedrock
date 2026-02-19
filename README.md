@@ -418,11 +418,11 @@ Cost: ~$0.01/request | Time: 2-5s | Security: Private network
 
 | Service | Configuration | Monthly Cost |
 |---------|--------------|--------------|
-| EC2 (t4g.medium, Graviton) | 2 vCPU, 4GB RAM | $24.19 |
+| EC2 (c7g.large, Graviton) | 2 vCPU, 4GB RAM | $52.60 |
 | EBS (gp3) | 30GB | $2.40 |
 | VPC Endpoints | 3 endpoints | $21.60 |
 | Data Transfer | VPC endpoint processing | $5-10 |
-| **Subtotal** | | **$53-58** |
+| **Subtotal** | | **$76-81** |
 
 ### Bedrock Usage Cost
 
