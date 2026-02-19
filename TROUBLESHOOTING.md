@@ -517,7 +517,7 @@ aws cloudformation update-stack \
   --parameters \
     ParameterKey=InstanceType,ParameterValue=c7g.xlarge \
     ParameterKey=KeyPairName,UsePreviousValue=true \
-    ParameterKey=ClawdbotModel,UsePreviousValue=true \
+    ParameterKey=OpenClawModel,UsePreviousValue=true \
   --capabilities CAPABILITY_IAM \
   --region us-west-2
 ```
