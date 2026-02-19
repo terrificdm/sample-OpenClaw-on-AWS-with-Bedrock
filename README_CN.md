@@ -51,10 +51,48 @@
 - 🚀 **Graviton ARM 处理器**：性价比比 x86 高 20-40%
 - 💰 **Nova 2 Lite 默认**：比 Claude 便宜 90%，日常任务表现出色
 - 🔐 **零密钥管理** - 一个 IAM 角色替代多个 API 密钥（Anthropic、OpenAI、DeepSeek）
-- 🤖 **8 个模型即用** - 无需改代码即可切换 Nova、Claude、DeepSeek、Llama
+- 🤖 **多模型支持** - 切换 Claude 4.6、Nova、DeepSeek
 - 🏢 **企业级** - 完整的 CloudTrail 审计日志和合规支持
 - ⚡ **一键部署** - CloudFormation 8 分钟自动化所有配置
 - 🔒 **安全访问** - SSM Session Manager，无需暴露公网端口
+
+## 部署选项
+
+根据您的需求选择部署方式：
+
+### 🚀 无服务器部署（AgentCore Runtime）- 生产环境推荐
+
+**[→ 使用 AgentCore Runtime 部署](README_AGENTCORE.md)**
+
+适合可变工作负载和成本优化：
+
+| 特性 | AgentCore Runtime | 传统 EC2 |
+|------|-------------------|----------|
+| **扩展性** | ✅ 根据需求自动扩展 | ❌ 固定容量 |
+| **成本模式** | ✅ 按使用付费（无空闲成本） | ❌ 24/7 付费（即使空闲） |
+| **可用性** | ✅ 跨 microVM 分布式 | ⚠️ 单实例 |
+| **容器隔离** | ✅ 每次执行隔离的 microVM | ⚠️ 共享实例 |
+| **管理** | ✅ 完全托管运行时 | ⚠️ 手动扩展 |
+
+**成本示例：**
+- 传统 EC2：$50/月（24/7 运行）
+- AgentCore：$15-30/月（仅在 agent 执行时付费）
+- **节省：典型使用场景下节省 40-70%**
+
+**[→ 完整 AgentCore 文档和部署指南](README_AGENTCORE.md)**
+
+---
+
+### 💻 标准部署（EC2）
+
+传统部署方式，OpenClaw 运行在专用 EC2 实例上：
+- **Linux（Graviton/x86）**：Graviton ARM 提供最佳性价比
+- **macOS（Apple Silicon）**：适合 iOS/macOS 开发工作流
+
+适合以下场景：
+- 可预测的固定成本
+- 完全控制实例
+- 无论使用情况如何都需要 24/7 可用性
 
 ## 快速开始
 

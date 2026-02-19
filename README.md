@@ -54,11 +54,49 @@ English | [简体中文](README_CN.md)
 ## Key Benefits
 
 - 🔐 **No API Key Management** - IAM roles handle authentication automatically
-- 🤖 **Multi-Model Support** - Easily Switch between Claude, Nova, DeepSeek
+- 🤖 **Multi-Model Support** - Switch between Claude 4.6, Nova, DeepSeek
 - 🏢 **Enterprise-Ready** - Full CloudTrail audit logs and compliance support
 - 🚀 **One-Click Deploy** - CloudFormation automates everything
 - 🔒 **Secure Access** - SSM Session Manager, no public ports exposed
 - 💰 **Cost Visibility** - Native AWS cost tracking and optimization
+
+## Deployment Options
+
+Choose the deployment that fits your needs:
+
+### 🚀 Serverless Deployment (AgentCore Runtime) - Recommended for Production
+
+**[→ Deploy with AgentCore Runtime](README_AGENTCORE.md)**
+
+Best for variable workloads and cost optimization:
+
+| Feature | AgentCore Runtime | Traditional EC2 |
+|---------|-------------------|-----------------|
+| **Scaling** | ✅ Auto-scales with demand | ❌ Fixed capacity |
+| **Cost Model** | ✅ Pay-per-use (no idle costs) | ❌ Pay 24/7 even when idle |
+| **Availability** | ✅ Distributed across microVMs | ⚠️ Single instance |
+| **Container Isolation** | ✅ Isolated microVMs per execution | ⚠️ Shared instance |
+| **Management** | ✅ Fully managed runtime | ⚠️ Manual scaling |
+
+**Cost Example:**
+- Traditional EC2: $50/month (running 24/7)
+- AgentCore: $15-30/month (pay only when agents execute)
+- **Savings: 40-70% for typical usage**
+
+**[→ Full AgentCore documentation and deployment guide](README_AGENTCORE.md)**
+
+---
+
+### 💻 Standard Deployment (EC2)
+
+Traditional deployment with OpenClaw running on dedicated EC2 instances:
+- **Linux (Graviton/x86)**: Best price-performance with Graviton ARM
+- **macOS (Apple Silicon)**: For iOS/macOS development workflows
+
+Choose this if you need:
+- Predictable fixed costs
+- Full control over the instance
+- 24/7 availability regardless of usage
 
 ## Quick Start
 
