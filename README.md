@@ -68,6 +68,8 @@ Choose the deployment that fits your needs:
 
 **[→ Deploy with AgentCore Runtime](README_AGENTCORE.md)**
 
+> ⚠️ **Work in Progress**: AgentCore Runtime requires a custom Docker image that is not yet provided. You'll need to build it yourself before deploying. See [README_AGENTCORE.md](README_AGENTCORE.md) for details.
+
 Best for variable workloads and cost optimization:
 
 | Feature | AgentCore Runtime | Traditional EC2 |

@@ -66,6 +66,38 @@
 
 ## Quick Start
 
+> ⚠️ **Work in Progress**: The AgentCore Runtime integration requires a custom Docker container image (`openclaw-agentcore-agent`) to be built and pushed to ECR before deployment. This image is not yet provided in this repository. You will need to build it yourself — see [Prerequisites](#prerequisites) below. A pre-built image and automated build pipeline are coming in a future release.
+
+### Prerequisites
+
+Before deploying, you need to build and push the agent container image to ECR:
+
+```bash
+# Set your account and region
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGION=us-east-1
+
+# Create ECR repository
+aws ecr create-repository --repository-name openclaw-agentcore-agent --region $REGION
+
+# Build your agent container (Dockerfile not yet provided — contribution welcome!)
+# The container must expose an HTTP endpoint on port 8080 that accepts AgentCore invocations
+docker build -t openclaw-agentcore-agent:latest .
+
+# Push to ECR
+aws ecr get-login-password --region $REGION | \
+  docker login --username AWS --password-stdin \
+  ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
+
+docker tag openclaw-agentcore-agent:latest \
+  ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/openclaw-agentcore-agent:latest
+
+docker push \
+  ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/openclaw-agentcore-agent:latest
+```
+
+> If you'd like to contribute a Dockerfile and agent wrapper, please open a PR! See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ### ⚡ One-Click Deploy (Recommended - 10-15 minutes to ready!)
 
 Click to deploy:

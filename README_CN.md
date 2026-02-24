@@ -58,6 +58,8 @@
 
 **[→ 使用 AgentCore Runtime 部署](README_AGENTCORE.md)**
 
+> ⚠️ **开发中**：AgentCore Runtime 需要一个自定义 Docker 镜像，目前仓库中尚未提供。部署前需要自行构建，详见 [README_AGENTCORE.md](README_AGENTCORE.md)。
+
 | 特性 | AgentCore Runtime | 传统 EC2 |
 |------|-------------------|----------|
 | **扩展性** | ✅ 根据需求自动扩展 | ❌ 固定容量 |
