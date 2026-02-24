@@ -1,0 +1,23 @@
+{
+  "gateway": {
+    "http": {
+      "port": 18789,
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "auth": {
+    "type": "aws-sdk",
+    "region": "${AWS_REGION}"
+  },
+  "sessions": {
+    "dir": "/tmp/openclaw/sessions"
+  },
+  "model": {
+    "provider": "bedrock",
+    "modelId": "${BEDROCK_MODEL_ID}"
+  }
+}

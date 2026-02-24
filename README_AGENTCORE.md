@@ -1,637 +1,395 @@
-# OpenClaw on AWS with Bedrock AgentCore Runtime
-
-> Deploy [OpenClaw](https://github.com/openclaw/openclaw) (formerly Clawdbot) on AWS using Amazon Bedrock AgentCore Runtime for serverless agent execution. Enterprise-ready, secure, one-click deployment with Graviton ARM processors.
+# OpenClaw on AWS with Bedrock AgentCore — Multi-Tenant Platform
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![AWS](https://img.shields.io/badge/AWS-Bedrock-orange.svg)](https://aws.amazon.com/bedrock/)
-[![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-blue.svg)](https://aws.amazon.com/cloudformation/)
+[![Status](https://img.shields.io/badge/Status-In%20Development%20%26%20Testing-yellow.svg)]()
 
-## What is This?
+> ⚠️ **Work in Progress** — This project is currently under active development and testing. Core infrastructure and Agent Container are functional; the Gateway routing integration and Authorization Agent channel delivery are not yet wired up end-to-end. Contributions and feedback welcome.
 
-[OpenClaw](https://github.com/openclaw/openclaw) is an open-source personal AI assistant that connects to WhatsApp, Slack, Discord, and more. This project provides an **AWS-native deployment** using **Amazon Bedrock AgentCore Runtime** for serverless agent execution, eliminating the need to manage multiple API keys and providing auto-scaling capabilities.
+## TL;DR
 
-## Why AgentCore Runtime?
+OpenClaw is a single-user AI assistant. We turned it into a multi-user platform on AWS.
 
-| Traditional Deployment | AgentCore Runtime Deployment |
-|----------------------|----------------------------|
-| Agents run on EC2 (fixed capacity) | **Agents run serverless (auto-scales)** |
-| Manual scaling required | **Automatic scaling based on demand** |
-| Pay for EC2 even when idle | **Pay-per-use pricing** |
-| Single instance bottleneck | **Distributed execution** |
-| Manual container management | **Managed container runtime** |
+Here's how it works:
 
-### Key Advantages
+1. **Each user gets their own isolated runtime.** When a message arrives, the EC2 Gateway identifies the user (`tenant_id`), then calls AWS AgentCore Runtime with `sessionId = tenant_id`. AWS spins up a separate microVM for each user — they can't touch each other's data or processes.
 
-**1. Serverless Agent Execution**
-- **Auto-scaling**: AgentCore Runtime automatically scales based on demand
-- **Pay-per-use**: Only pay when agents are executing
-- **No idle costs**: No EC2 costs when agents aren't running
-- **High availability**: Distributed execution across multiple microVMs
+2. **openclaw runs as a subprocess inside a Docker container.** Python is the entry point. Before forwarding the message to openclaw, Python injects the user's permission profile into the system prompt — telling the LLM which tools it's allowed to use. After openclaw responds, Python scans the response for any unauthorized tool usage and logs violations to CloudWatch.
 
-**2. Multi-Model Flexibility with Better Economics**
-- **Nova 2 Lite default**: $0.30/$2.50 per 1M tokens vs Claude's $3/$15 (90% cheaper)
-- **8 models available**: Switch between Nova, Claude, DeepSeek, Llama with one parameter
-- **Smart routing**: Use Nova Lite for simple tasks, Claude Sonnet for complex reasoning
-- **No vendor lock-in**: Change models without code changes or redeployment
+3. **Sensitive operations go through a human.** A dedicated Authorization Agent (another AgentCore session) receives permission requests, formats them as natural-language notifications, and sends them to an admin via WhatsApp or Telegram. The admin replies to approve or reject. Unanswered requests auto-reject after 30 minutes.
 
-**3. Flexible Instance Sizing with Graviton Advantage (Recommended)**
-- **x86 and ARM support**: Choose t3/c5 (x86) or t4g/c7g (Graviton ARM)
-- **Graviton ARM recommended**: 20-40% better price-performance than x86
-- **Cost example**: t4g.medium ($24/mo) vs t3.medium ($30/mo) - same specs, 20% savings
-- **Flexible sizing**: Scale from t4g.small ($12/mo) to c7g.xlarge ($108/mo) as needed
-- **Energy efficient**: Graviton uses 70% less power than x86
+4. **Infrastructure is one CloudFormation stack.** EC2 Gateway + ECR + SSM (permission profiles) + CloudWatch. AgentCore Runtime is created separately after pushing the Docker image.
 
-**4. Enterprise Security & Compliance**
-- **Zero API key management**: IAM roles replace multiple provider keys
-- **Complete audit trail**: CloudTrail logs every Bedrock API call
-- **Private networking**: VPC Endpoints keep traffic within AWS
-- **Secure access**: SSM Session Manager, no public ports
-- **Container isolation**: Each agent execution runs in isolated microVMs
+---
 
-**5. Cloud-Native Automation**
-- **One-click deployment**: CloudFormation automates VPC, IAM, EC2, AgentCore, ECR setup
-- **Infrastructure as Code**: Reproducible, version-controlled deployments
-- **Multi-region support**: Deploy in any AWS region with identical configuration
+## What This Project Does
 
-## Key Benefits
+OpenClaw is an open-source personal AI assistant that connects to WhatsApp, Telegram, Discord, and more. It runs as a single-user Node.js process.
 
-- 🔐 **No API Key Management** - IAM roles handle authentication automatically
-- 🤖 **Serverless Agents** - AgentCore Runtime auto-scales based on demand
-- 💰 **Pay-Per-Use** - Only pay when agents execute, no idle costs
-- 🏢 **Enterprise-Ready** - Full CloudTrail audit logs and compliance support
-- 🚀 **One-Click Deploy** - CloudFormation automates everything
-- 🔒 **Secure Access** - SSM Session Manager, no public ports exposed
-- 📊 **Cost Visibility** - Native AWS cost tracking and optimization
-- 🌐 **Auto-Scaling** - Handles traffic spikes automatically
+This project wraps openclaw in a multi-tenant serverless platform — **without modifying openclaw itself**.
 
-## Quick Start
+### What openclaw provides (unchanged)
 
-> ⚠️ **Work in Progress**: The AgentCore Runtime integration requires a custom Docker container image (`openclaw-agentcore-agent`) to be built and pushed to ECR before deployment. This image is not yet provided in this repository. You will need to build it yourself — see [Prerequisites](#prerequisites) below. A pre-built image and automated build pipeline are coming in a future release.
+- Messaging channel integrations: WhatsApp, Telegram, Discord, Slack
+- Tool execution: web_search, shell, browser, file, code_execution
+- Per-session memory: Markdown + SQLite in `/tmp/openclaw/sessions/`
+- Heartbeat and cron via built-in `CronService`
+- OpenAI-compatible HTTP API: `POST /v1/chat/completions`
 
-### Prerequisites
+### What this project adds
 
-Before deploying, you need to build and push the agent container image to ECR:
+| Capability | openclaw alone | This project |
+|---|---|---|
+| Users | Single user | Multiple tenants, fully isolated |
+| Execution | Local process | Serverless microVM per tenant (AgentCore Runtime) |
+| Tool permissions | None | Per-tenant SSM profiles injected into system prompt |
+| Response audit | None | Post-execution scan for unauthorized tool usage |
+| Memory poisoning defense | None | Injection pattern detection before writing to memory |
+| Input validation | None | Message truncation, tool name and path validation |
+| Cross-container memory | Lost on restart | Optional cloud persistence via AgentCore Memory |
+| Observability | Local logs | Structured CloudWatch JSON logs per tenant |
+| Infrastructure | Manual | CloudFormation (EC2 + ECR + SSM + CloudWatch) |
 
-```bash
-# Set your account and region
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-REGION=us-east-1
-
-# Create ECR repository
-aws ecr create-repository --repository-name openclaw-agentcore-agent --region $REGION
-
-# Build your agent container (Dockerfile not yet provided — contribution welcome!)
-# The container must expose an HTTP endpoint on port 8080 that accepts AgentCore invocations
-docker build -t openclaw-agentcore-agent:latest .
-
-# Push to ECR
-aws ecr get-login-password --region $REGION | \
-  docker login --username AWS --password-stdin \
-  ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
-
-docker tag openclaw-agentcore-agent:latest \
-  ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/openclaw-agentcore-agent:latest
-
-docker push \
-  ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/openclaw-agentcore-agent:latest
-```
-
-> If you'd like to contribute a Dockerfile and agent wrapper, please open a PR! See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-### ⚡ One-Click Deploy (Recommended - 10-15 minutes to ready!)
-
-Click to deploy:
-
-| Region | Launch Stack |
-|--------|--------------|
-| **US West (Oregon)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://sharefile-jiade.s3.cn-northwest-1.amazonaws.com.cn/clawdbot-bedrock-agentcore.yaml) |
-| **US East (N. Virginia)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://sharefile-jiade.s3.cn-northwest-1.amazonaws.com.cn/clawdbot-bedrock-agentcore.yaml) |
-| **EU (Ireland)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://sharefile-jiade.s3.cn-northwest-1.amazonaws.com.cn/clawdbot-bedrock-agentcore.yaml) |
-| **Asia Pacific (Tokyo)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://sharefile-jiade.s3.cn-northwest-1.amazonaws.com.cn/clawdbot-bedrock-agentcore.yaml) |
-
-### Alternative: CLI Deployment
-
-**Prerequisites**:
-- AWS CLI configured (`aws configure`)
-- Docker installed and running
-- EC2 Key Pair created in your target region
-- AWS account with permissions for CloudFormation, EC2, VPC, IAM, ECR, Bedrock AgentCore Runtime, and Bedrock model access
-
-```bash
-# 1. Build and push container
-cd ../openclaw
-docker build -f agent/Dockerfile -t openclaw-agentcore-agent:latest .
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-docker tag openclaw-agentcore-agent:latest ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/openclaw-agentcore-agent:latest
-docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/openclaw-agentcore-agent:latest
-
-# 2. Deploy CloudFormation stack
-cd ../OpenClaw-on-AWS-with-Bedrock
-aws cloudformation create-stack \
-  --stack-name openclaw-agentcore \
-  --template-body file://clawdbot-bedrock-agentcore.yaml \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --region us-east-1 \
-  --parameters \
-    ParameterKey=KeyPairName,ParameterValue=your-key-pair \
-    ParameterKey=InstanceType,ParameterValue=c7g.large \
-    ParameterKey=OpenClawModel,ParameterValue=global.amazon.nova-2-lite-v1:0 \
-    ParameterKey=EnableAgentCore,ParameterValue=true \
-    ParameterKey=CreateVPCEndpoints,ParameterValue=true
-```
-
-### 🔌 Accessing OpenClaw
-
-**Step 1: Port Forwarding**
-
-Open a terminal and run (keep it open):
-
-```bash
-# Get instance ID
-INSTANCE_ID=$(aws cloudformation describe-stacks \
-  --stack-name openclaw-agentcore \
-  --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue' \
-  --output text \
-  --region us-east-1)
-
-# Start port forwarding
-aws ssm start-session \
-  --target $INSTANCE_ID \
-  --region us-east-1 \
-  --document-name AWS-StartPortForwardingSession \
-  --parameters '{"portNumber":["18789"],"localPortNumber":["18789"]}'
-```
-
-**Step 2: Get Gateway Token**
-
-```bash
-aws ssm get-parameter \
-  --name "/openclaw/openclaw-agentcore/gateway-token" \
-  --region us-east-1 \
-  --with-decryption \
-  --query 'Parameter.Value' \
-  --output text
-```
-
-**Step 3: Open Gateway UI**
-
-Open in your browser:
-```
-http://localhost:18789/?token=<GATEWAY_TOKEN>
-```
+---
 
 ## Architecture
 
 ```
-┌─────────────┐
-│   You       │ Send message via WhatsApp/Telegram/Discord
-└──────┬──────┘
-       │ (Internet)
-       ▼
-┌─────────────────────────────────────────────────────┐
-│  AWS Cloud                                          │
-│                                                     │
-│  ┌──────────────┐         ┌──────────────┐        │
-│  │ EC2 Gateway  │────────▶│ AgentCore    │        │
-│  │  (openclaw)   │  IAM    │ Runtime      │        │
-│  └──────────────┘  Auth   └──────┬───────┘        │
-│         │                         │                  │
-│         │ VPC Endpoints          │                  │
-│         │ (Private Network)      │                  │
-│         ▼                         ▼                  │
-│  ┌──────────────┐         ┌──────────────┐        │
-│  │ CloudTrail   │         │ Containerized│        │
-│  │ (Audit Logs) │         │ OpenClaw Agent│        │
-│  └──────────────┘         └──────┬───────┘        │
-│                                   │                  │
-│                                   ▼                  │
-│                            ┌──────────────┐        │
-│                            │   Bedrock    │        │
-│                            │ (Nova/Claude)│        │
-│                            └──────────────┘        │
-└─────────────────────────────────────────────────────┘
-       │
-       ▼ (Internet)
-┌──────────────┐
-│   You        │ Receive response
-└──────────────┘
+YOUR USERS
+  │  WhatsApp / Telegram / Discord
+  │
+  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  EC2 INSTANCE  (always-on, ~$35/month)                          │
+│                                                                  │
+│  openclaw Gateway process  (Node.js, port 18789)                │
+│  • Receives messages from WhatsApp / Telegram / Discord         │
+│  • Provides web UI for configuration                            │
+│                                                                  │
+│  gateway/tenant_router.py  (integration layer — see note)       │
+│  • derive_tenant_id(channel, user_id)                           │
+│  • get_permission_profile(tenant_id)  ← reads SSM              │
+│  • invoke_agent_runtime(sessionId=tenant_id, payload)           │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │  invokeAgentRuntime API call
+                               │  sessionId = tenant_id
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  AGENTCORE RUNTIME  (serverless, pay-per-use)                   │
+│  Each tenant gets an isolated microVM                           │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  AGENT CONTAINER  (Docker image in ECR)                   │  │
+│  │                                                           │  │
+│  │  server.py  (Python HTTP wrapper, port 8080)              │  │
+│  │  1. validate_message()  ← safety.py                      │  │
+│  │  2. _build_system_prompt(tenant_id)                       │  │
+│  │     → reads SSM permission profile                        │  │
+│  │     → injects "Allowed tools: [...]" into system prompt   │  │
+│  │  3. POST /v1/chat/completions → openclaw subprocess       │  │
+│  │     user = "agentcore:{tenant_id}"  ← SessionKey          │  │
+│  │  4. _audit_response()  ← scans response for blocked tools │  │
+│  │     → logs violations to CloudWatch                       │  │
+│  │                                                           │  │
+│  │  openclaw subprocess  (Node.js, port 18789)               │  │
+│  │  • Executes tools, manages session memory                 │  │
+│  │  • Session files: /tmp/openclaw/sessions/                 │  │
+│  │    agentcore:{tenant_id}/memory/memory.md                 │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+         │  PermissionRequest (when audit detects violation)
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  AUTHORIZATION AGENT  (separate AgentCore Runtime session)      │
+│  session_id = "auth-agent-{stack_name}"                         │
+│                                                                  │
+│  auth-agent/server.py  → handler.py → approval_executor.py     │
+│  • Formats risk-assessed approval notification                  │
+│  • Sends to Human Approver via WhatsApp/Telegram (logged)       │
+│  • 30-minute auto-reject timer                                  │
+│  • /pending approvals command                                   │
+│  • Reads system prompt from SSM on every request (hot-reload)  │
+│  • approve_temporary → issues ApprovalToken (max 24h)          │
+│  • approve_persistent → updates SSM permission profile         │
+└─────────────────────────────────────────────────────────────────┘
+
+AWS SUPPORTING SERVICES
+  SSM Parameter Store
+    /openclaw/{stack}/tenants/{tenant_id}/permissions  ← per-tenant tool allowlist
+    /openclaw/{stack}/auth-agent/system-prompt         ← hot-reloadable
+    /openclaw/{stack}/gateway-token                    ← Gateway auth token
+
+  CloudWatch Logs  /openclaw/{stack}/agents
+    log_stream = tenant_{tenant_id}  (one stream per tenant)
+    event_type: agent_invocation | permission_denied | approval_decision
+
+  ECR Repository  {stack}-multitenancy-agent
 ```
 
-### Component Details
+### Permission enforcement approach
 
-**Gateway (EC2)**
-- Handles messaging channels (WhatsApp, Telegram, Discord, Slack)
-- Routes agent requests to AgentCore Runtime
-- Web UI for configuration
-- Runs on EC2 (Graviton ARM recommended)
+openclaw is a black box — Python cannot intercept its internal tool calls. Two complementary mechanisms are used:
 
-**AgentCore Runtime (Serverless)**
-- Serverless execution environment for OpenClaw agents
-- Auto-scales based on demand
-- Runs containerized agents in isolated microVMs
-- Pay-per-use pricing
+- **Plan A (soft enforcement)**: The tenant's allowed tools list is injected into the system prompt before every request. The LLM knows its boundaries and refuses unauthorized tools.
+- **Plan E (audit)**: After openclaw responds, the response text is scanned for blocked tool names. Violations are logged to CloudWatch with `event_type=permission_denied`.
 
-**Containerized OpenClaw Agent**
-- Docker container with OpenClaw agent
-- HTTP server exposing `/ping` and `/invocations` endpoints
-- Uses Pi framework internally
-- Runs inside AgentCore Runtime
+This is not a hard block, but it covers the vast majority of cases. For hard enforcement, the architecture would need to switch to AgentCore Gateway (MCP mode).
 
-**Amazon Bedrock Models**
-- LLM models (Nova, Claude, DeepSeek, Llama)
-- Invoked by the agent container
-- IAM-based authentication (no API keys)
+### Security model
 
-## How to Use OpenClaw
+Based on [Microsoft's OpenClaw security guidance](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk):
 
-### Connect Messaging Platforms
+- **Credential exposure**: AgentCore Runtime microVM isolation — each tenant runs in a separate VM with no shared filesystem
+- **Memory poisoning**: `safety.py` checks session summaries for injection patterns before writing to AgentCore Memory
+- **Malicious skill execution**: `install_skill`, `load_extension`, `eval` are in `ALWAYS_BLOCKED_TOOLS` — always included in the blocked list in the system prompt
+- **Input validation**: Messages truncated at 32,000 chars; tool names validated as `[a-zA-Z0-9_]+`; resource paths checked for null bytes and path traversal
 
-**For detailed configuration guides, visit [OpenClaw Official Documentation](https://docs.openclaw.ai/).**
+OpenClaw's [security policy](https://github.com/openclaw/openclaw/security) explicitly states it does not model one gateway as a multi-tenant adversarial boundary. This project fills that gap.
 
-#### WhatsApp (Recommended)
+---
 
-1. **In Web UI**: Click "Channels" → "Add Channel" → "WhatsApp"
-2. **Scan QR Code**: Use WhatsApp on your phone
-   - Open WhatsApp → Settings → Linked Devices
-   - Tap "Link a Device"
-   - Scan the QR code displayed
-3. **Verify**: Send a test message to your OpenClaw number
-
-**Tip**: Use a dedicated phone number or enable `selfChatMode` for personal number.
-
-📖 **Full guide**: https://docs.openclaw.ai/channels/whatsapp
-
-#### Telegram
-
-1. **Create Bot**: Message [@BotFather](https://t.me/botfather)
-   ```
-   /newbot
-   Choose a name: My openclaw
-   Choose a username: my_openclaw_bot
-   ```
-2. **Copy Token**: BotFather will give you a token like `123456:ABC-DEF...`
-3. **Configure**: In Web UI, add Telegram channel with your bot token
-4. **Test**: Send `/start` to your bot on Telegram
-
-📖 **Full guide**: https://docs.openclaw.ai/channels/telegram
-
-#### Discord
-
-1. **Create Bot**: Visit [Discord Developer Portal](https://discord.com/developers/applications)
-   - Click "New Application"
-   - Go to "Bot" → "Add Bot"
-   - Copy bot token
-   - Enable intents: Message Content, Server Members
-2. **Invite Bot**: Generate invite URL with permissions
-   ```
-   https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot
-   ```
-3. **Configure**: In Web UI, add Discord channel with bot token
-4. **Test**: Mention your bot in a Discord channel
-
-📖 **Full guide**: https://docs.openclaw.ai/channels/discord
-
-#### Slack
-
-1. **Create App**: Visit [Slack API](https://api.slack.com/apps)
-2. **Configure Bot**: Add bot token scopes (chat:write, channels:history)
-3. **Install**: Install app to your workspace
-4. **Configure**: In Web UI, add Slack channel
-5. **Test**: Invite bot to a channel and mention it
-
-📖 **Full guide**: https://docs.openclaw.ai/channels/slack
-
-### Using OpenClaw
-
-#### Send Messages
-
-**Via WhatsApp/Telegram/Discord**: Just send a message!
+## Repository Structure
 
 ```
-You: What's the weather today?
-OpenClaw: Let me check that for you...
+sample-Moltbot-on-AWS-with-Bedrock/
+│
+├── agent-container/                     # Docker image deployed to AgentCore Runtime
+│   ├── Dockerfile                       # Multi-stage: openclaw binary + Python 3.12 slim
+│   ├── openclaw.json                    # openclaw config: chatCompletions enabled, aws-sdk auth
+│   ├── requirements.txt                 # requests, boto3
+│   ├── server.py                        # HTTP wrapper: /ping + /invocations (Plan A + E)
+│   ├── permissions.py                   # SSM profile read/write; check_tool_permission; send_permission_request
+│   ├── safety.py                        # Input validation + memory poisoning detection
+│   ├── identity.py                      # ApprovalToken: issue, validate, revoke (max 24h TTL)
+│   ├── memory.py                        # AgentCore Memory: load on start, save on end (optional)
+│   ├── observability.py                 # Structured CloudWatch JSON logs
+│   └── PERMISSION_SETUP_PROMPT.md       # Paste into SOUL.md for self-service onboarding
+│
+├── auth-agent/                          # Authorization Agent (separate AgentCore session)
+│   ├── server.py                        # HTTP entry point: /ping + /invocations
+│   ├── permission_request.py            # PermissionRequest dataclass
+│   ├── handler.py                       # Approval notifications, 30-min timer, /pending approvals
+│   └── approval_executor.py             # Execute approve/reject; update SSM; log to CloudWatch
+│
+├── src/utils/
+│   └── agentcore.ts                     # deriveSessionKey(), formatInvocationResponse()
+│
+├── clawdbot-bedrock-agentcore-multitenancy.yaml  # CloudFormation: EC2 + ECR + SSM + CloudWatch
+├── setup-enterprise-profiles.sh                  # Configure SSM profiles for enterprise roles
+└── README_AGENTCORE.md                           # This file
 ```
 
-**Via CLI**:
-```bash
-# SSH/SSM to instance
-openclaw agent --message "Hello" --json
-```
+**Where each piece of code runs:**
 
-#### Chat Commands
+| Code | Where it runs | How it gets there |
+|---|---|---|
+| `agent-container/*.py` | Inside AgentCore Runtime microVM | Built into Docker image, pushed to ECR |
+| `auth-agent/*.py` | Inside AgentCore Runtime (separate session) | Requires separate Docker image or second entry point |
+| `gateway/tenant_router.py` | On EC2 (integration layer) | Not yet wired into openclaw Gateway — see note below |
+| `src/utils/agentcore.ts` | Reference implementation | SessionKey logic already implemented in server.py |
 
-Send these in any connected channel:
+> `gateway/tenant_router.py` provides `derive_tenant_id()`, `get_permission_profile()`, and `invoke_agent()`. These need to be called from a Python HTTP service on EC2 that openclaw routes messages to via webhook. This integration is not yet wired up.
 
-| Command | Description |
-|---------|-------------|
-| `/status` | Show session status (model, tokens, cost) |
-| `/new` or `/reset` | Start a new conversation |
-| `/think high` | Enable deep thinking mode |
-| `/help` | Show available commands |
+---
 
-#### Voice Messages
+## Enterprise Permission Profiles
 
-**WhatsApp/Telegram**: Send voice notes directly - OpenClaw will transcribe and respond!
+Run `setup-enterprise-profiles.sh` after deployment to configure role-based access:
 
-#### Browser Control
-
-```
-You: Open google.com and search for "AWS Bedrock"
-OpenClaw: *Opens browser, performs search, returns results*
-```
-
-#### Scheduled Tasks
-
-```
-You: Remind me every day at 9am to check emails
-OpenClaw: *Creates cron job*
-```
-
-### Advanced Features
-
-#### Skills
+| Role | Tools | Use case |
+|---|---|---|
+| `finance-agent` | web_search, shell (read-only), file | SAP financial database queries |
+| `web-agent` | All tools | Website development and deployment |
+| `erp-agent` | web_search, shell, file, file_write | ERP read/write operations |
+| `readonly-agent` | web_search only | General staff assistant |
+| `auth-agent` | Unrestricted | Handles permission approvals |
 
 ```bash
-# List available skills
-openclaw skills list
-
-# Install a skill
-openclaw skills install voice-generation
-
-# View installed skills
-openclaw skills installed
+STACK_NAME=openclaw-multitenancy REGION=us-east-1 bash setup-enterprise-profiles.sh
 ```
 
-#### Community Skills
+---
 
-For optional third-party integrations, see [Community Skills](COMMUNITY_SKILLS.md).
+## Step-by-Step Deployment
 
-Featured: [openclaw-aws-backup-skill](https://github.com/genedragon/openclaw-aws-backup-skill) for encrypted S3 backup/restore workflows.
+### Prerequisites
 
-#### Custom Prompts
+- AWS CLI configured with permissions for: CloudFormation, EC2, VPC, IAM, ECR, Bedrock AgentCore, SSM, CloudWatch
+- Docker installed locally
+- EC2 Key Pair in your target region
+- Bedrock model access enabled (Nova 2 Lite or Claude Sonnet)
 
-Create `~/.openclaw/workspace/SOUL.md` on the instance:
+### Phase 1 — Deploy AWS infrastructure
 
-```markdown
-You are my personal assistant. Be concise and helpful.
-Always respond in a friendly tone.
-```
-
-#### Multi-Agent Routing
-
-Configure different agents for different channels in Web UI.
-
-For detailed guides, visit [OpenClaw Documentation](https://docs.openclaw.ai/).
-
-## Cost Breakdown
-
-### Monthly Infrastructure Cost
-
-| Service | Configuration | Monthly Cost |
-|---------|--------------|--------------|
-| EC2 (c7g.large, Graviton) | 2 vCPU, 4GB RAM | $30-40 |
-| EBS (gp3) | 30GB | $2.40 |
-| VPC Endpoints | 3 endpoints (optional) | $21.60 |
-| Data Transfer | VPC endpoint processing | $5-10 |
-| **Subtotal** | | **$33-58** |
-
-### AgentCore Runtime Cost
-
-| Component | Pricing |
-|-----------|---------|
-| **Runtime Execution** | Pay-per-use (per invocation) |
-| **Container Storage** | Included in ECR costs |
-| **Network Transfer** | Standard AWS data transfer rates |
-
-**Note**: AgentCore Runtime is serverless - you only pay when agents execute. No idle costs!
-
-### Bedrock Usage Cost
-
-| Model | Input | Output |
-|-------|-------|--------|
-| Nova 2 Lite | $0.30/1M tokens | $2.50/1M tokens |
-| Claude Sonnet 4.5 | $3/1M tokens | $15/1M tokens |
-| Claude Haiku 4.5 | $1/1M tokens | $5/1M tokens |
-| Nova Pro | $0.80/1M tokens | $3.20/1M tokens |
-| DeepSeek R1 | $0.55/1M tokens | $2.19/1M tokens |
-
-**Example**: 100 conversations/day with Nova 2 Lite ≈ $5-8/month
-
-**Total**: ~$38-66/month for light usage (with AgentCore Runtime)
-
-### Cost Optimization
-
-- Use Nova 2 Lite instead of Claude: 90% cheaper
-- Use Graviton instances: 20-40% cheaper than x86
-- Disable VPC endpoints: Save $22/month (less secure)
-- AgentCore Runtime: Pay-per-use, no idle costs
-- Use Savings Plans: Save 30-40% on EC2
-
-## Configuration
-
-### Supported Models
-
-```yaml
-# In CloudFormation parameters
-OpenClawModel:
-  - global.amazon.nova-2-lite-v1:0              # Default, most cost-effective
-  - global.anthropic.claude-sonnet-4-5-20250929-v1:0  # Most capable
-  - us.amazon.nova-pro-v1:0                     # Balanced performance
-  - global.anthropic.claude-opus-4-5-20251101-v1:0    # Advanced reasoning
-  - global.anthropic.claude-haiku-4-5-20251001-v1:0   # Fast and efficient
-  - global.anthropic.claude-sonnet-4-20250514-v1:0
-  - us.deepseek.r1-v1:0                         # Open-source reasoning
-  - us.meta.llama3-3-70b-instruct-v1:0          # Open-source alternative
-```
-
-**Model Selection Guide**:
-- **Nova 2 Lite** (default): Most cost-effective, 90% cheaper than Claude, great for everyday tasks
-- **Claude Sonnet 4.5**: Most capable for complex reasoning and coding
-- **Nova Pro**: Best balance of performance and cost, supports multimodal
-- **DeepSeek R1**: Cost-effective open-source reasoning model
-
-### Instance Types
-
-```yaml
-# Linux Instances
-InstanceType:
-  # Graviton (ARM) - Recommended for best price-performance
-  - t4g.small   # $12/month, 2GB RAM
-  - t4g.medium  # $24/month, 4GB RAM
-  - t4g.large   # $48/month, 8GB RAM
-  - c7g.large   # $30-40/month, 2 vCPU, 4GB RAM (default)
-  - c7g.xlarge  # $108/month, 8GB RAM, compute-optimized
-  
-  # x86 - Alternative for broader compatibility
-  - t3.small    # $15/month, 2GB RAM
-  - t3.medium   # $30/month, 4GB RAM
-  - t3.large    # $60/month, 8GB RAM
-  - c5.xlarge   # $122/month, 8GB RAM
-```
-
-**Graviton Benefits**: ARM-based processors offer 20-40% better price-performance than x86.
-
-### VPC Endpoints
-
-```yaml
-CreateVPCEndpoints: true   # Recommended for production
-  # Pros: Private network, more secure, lower latency
-  # Cons: +$22/month
-
-CreateVPCEndpoints: false  # For cost optimization
-  # Pros: Save $22/month
-  # Cons: Traffic goes through public internet
-```
-
-### Enable/Disable AgentCore
-
-```yaml
-EnableAgentCore: true   # Use AgentCore Runtime (serverless, recommended)
-EnableAgentCore: false # Run agents locally on EC2
-```
-
-## Security Features
-
-- **IAM roles**: Eliminate API key risks - no credentials to leak
-- **CloudTrail**: Logs every Bedrock API call for compliance
-- **VPC Endpoints**: Keep traffic private within AWS network
-- **SSM Session Manager**: Secure access without public ports
-- **Container isolation**: Each agent execution runs in isolated microVMs
-- **No public IPs**: Gateway accessed only via SSM port forwarding
-
-## Troubleshooting
-
-### Port Forwarding Fails
-
-- Ensure SSM Session Manager Plugin is installed
-- Check EC2 instance is running
-- Verify IAM role has SSM permissions
-
-### Gateway Not Accessible
-
-- Check Gateway service is running: `systemctl --user status openclaw-gateway.service`
-- Verify port 18789 is listening: `ss -tlnp | grep 18789`
-- Check Gateway logs: `journalctl --user -u openclaw-gateway.service -f`
-
-### AgentCore Not Working
-
-- Verify runtime ID in Gateway config: `cat ~/.openclaw/openclaw.json | jq .agentcore`
-- Check IAM permissions for AgentCore Runtime
-- View container logs in CloudWatch
-- Verify container image is pushed to ECR
-
-### Agent Response Not Received
-
-- Check Gateway logs for errors
-- Verify AgentCore Runtime is active
-- Check container logs in CloudWatch
-- Verify Bedrock model access is enabled
-
-### Config File Permissions
-
-If you see `EACCES: permission denied` errors:
 ```bash
-# Fix permissions
-chmod 644 ~/.openclaw/openclaw.json
-chown ubuntu:ubuntu ~/.openclaw/openclaw.json
-chmod 755 ~/.openclaw
-chown ubuntu:ubuntu ~/.openclaw
+git clone <repo-url>
+cd sample-Moltbot-on-AWS-with-Bedrock
+
+aws cloudformation create-stack \
+  --stack-name openclaw-multitenancy \
+  --template-body file://clawdbot-bedrock-agentcore-multitenancy.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1 \
+  --parameters \
+    ParameterKey=KeyPairName,ParameterValue=your-key-pair \
+    ParameterKey=OpenClawModel,ParameterValue=global.amazon.nova-2-lite-v1:0 \
+    ParameterKey=AuthAgentChannelType,ParameterValue=whatsapp
+
+aws cloudformation wait stack-create-complete \
+  --stack-name openclaw-multitenancy --region us-east-1
 ```
 
-### Missing Templates
+### Phase 2 — Build and push the Agent Container
 
-If you see "Missing workspace template" errors:
 ```bash
-# Copy templates from npm package
-NODE_VERSION=$(node --version | cut -d v -f 2)
-TEMPLATE_SRC="/home/ubuntu/.nvm/versions/node/v$NODE_VERSION/lib/node_modules/openclaw-agentcore/docs/reference/templates"
-TEMPLATE_DEST="/home/ubuntu/docs/reference/templates"
-mkdir -p "$TEMPLATE_DEST"
-cp "$TEMPLATE_SRC"/*.md "$TEMPLATE_DEST/"
-chown -R ubuntu:ubuntu "$TEMPLATE_DEST"
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGION=us-east-1
+
+ECR_URI=$(aws cloudformation describe-stacks \
+  --stack-name openclaw-multitenancy --region $REGION \
+  --query 'Stacks[0].Outputs[?OutputKey==`MultitenancyEcrRepositoryUri`].OutputValue' \
+  --output text)
+
+aws ecr get-login-password --region $REGION | \
+  docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
+
+# Build from repo root (Dockerfile uses paths relative to repo root)
+docker build --platform linux/arm64 -f agent-container/Dockerfile -t $ECR_URI:latest .
+docker push $ECR_URI:latest
 ```
 
-## Comparison with Original OpenClaw
+### Phase 3 — Create the AgentCore Runtime
 
-### Local Deployment (Original)
+```bash
+EXECUTION_ROLE_ARN=$(aws cloudformation describe-stacks \
+  --stack-name openclaw-multitenancy --region $REGION \
+  --query 'Stacks[0].Outputs[?OutputKey==`AgentContainerExecutionRoleArn`].OutputValue' \
+  --output text)
 
-**Setup**: Install on Mac Mini/PC, configure API keys, set up Tailscale VPN  
-**Cost**: $20-30/month (API fees only, excludes $599 hardware + electricity)  
-**Models**: Single provider (Anthropic/OpenAI), manual switching  
-**Security**: API keys in config files, no audit logs  
-**Availability**: Depends on your hardware and internet  
-**Scalability**: Limited to single machine resources  
-**Agent Execution**: Runs on local machine
+RUNTIME_ID=$(aws bedrock-agentcore create-agent-runtime \
+  --agent-runtime-name "openclaw-multitenancy-runtime" \
+  --agent-runtime-artifact '{"containerConfiguration":{"containerUri":"'$ECR_URI':latest"}}' \
+  --role-arn "$EXECUTION_ROLE_ARN" \
+  --network-configuration '{"networkMode":"PUBLIC"}' \
+  --environment-variables "STACK_NAME=openclaw-multitenancy,AWS_REGION=$REGION,BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0" \
+  --region $REGION \
+  --query 'agentRuntimeId' --output text)
 
-### Cloud Deployment with AgentCore (This Project)
+aws ssm put-parameter \
+  --name "/openclaw/openclaw-multitenancy/runtime-id" \
+  --value "$RUNTIME_ID" --type String --overwrite --region $REGION
+```
 
-**Setup**: One-click CloudFormation deployment, 10-15 minutes to ready  
-**Cost**: $38-66/month all-inclusive (Graviton + AgentCore + Bedrock)  
-**Models**: 8 models via Bedrock, switch with one parameter  
-**Security**: IAM roles (no keys), CloudTrail audit, VPC Endpoints  
-**Availability**: 99.99% uptime with enterprise SLA  
-**Scalability**: Elastic sizing (t4g.small to c7g.xlarge), orchestrate cloud resources  
-**Agent Execution**: Serverless via AgentCore Runtime (auto-scales)
+### Phase 4 — Configure the Gateway on EC2
 
-**Bottom line**: Cloud deployment with AgentCore provides enterprise-grade security, multi-model flexibility, unlimited scalability, and serverless agent execution. For teams, one cloud instance ($50/mo) serves 10+ people vs individual ChatGPT Plus subscriptions ($200/mo).
+```bash
+INSTANCE_ID=$(aws cloudformation describe-stacks \
+  --stack-name openclaw-multitenancy --region $REGION \
+  --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue' \
+  --output text)
 
-## What Gets Deployed
+aws ssm start-session --target $INSTANCE_ID --region $REGION
+```
 
-### Infrastructure
+On the EC2 instance:
+```bash
+RUNTIME_ID=$(aws ssm get-parameter \
+  --name "/openclaw/openclaw-multitenancy/runtime-id" \
+  --region us-east-1 --query 'Parameter.Value' --output text)
 
-- **VPC** with public and private subnets
-- **EC2 Instance** (Gateway) - Graviton recommended
-- **ECR Repository** for agent container
-- **AgentCore Runtime** (serverless)
-- **IAM Roles** with proper permissions
-- **VPC Endpoints** (optional, for private access)
-- **SSM Parameters** for configuration storage
+python3 -c "
+import json
+c = json.load(open('/home/ubuntu/.openclaw/openclaw.json'))
+c['agentcore'] = {'enabled': True, 'runtimeId': '$RUNTIME_ID', 'region': 'us-east-1'}
+json.dump(c, open('/home/ubuntu/.openclaw/openclaw.json', 'w'), indent=2)
+"
+openclaw daemon restart
+```
 
-### Configuration
+### Phase 5 — Access the Gateway UI
 
-- Gateway automatically configured with AgentCore Runtime
-- Bedrock model configured
-- Messaging channels enabled
-- SSM Session Manager for secure access
-- Template directories initialized
-- Workspace files created
+```bash
+# Terminal 1: port forwarding
+aws ssm start-session --target $INSTANCE_ID --region $REGION \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["18789"],"localPortNumber":["18789"]}'
+
+# Terminal 2: get token
+aws ssm get-parameter \
+  --name "/openclaw/openclaw-multitenancy/gateway-token" \
+  --region $REGION --with-decryption --query 'Parameter.Value' --output text
+```
+
+Open `http://localhost:18789/?token=<TOKEN>` in your browser, then connect WhatsApp/Telegram/Discord via the Channels UI.
+
+### Phase 6 — Configure enterprise profiles (optional)
+
+```bash
+STACK_NAME=openclaw-multitenancy REGION=us-east-1 bash setup-enterprise-profiles.sh
+```
+
+---
+
+## Day-2 Operations
+
+### Update Authorization Agent behavior (no redeployment)
+
+```bash
+aws ssm put-parameter \
+  --name "/openclaw/openclaw-multitenancy/auth-agent/system-prompt" \
+  --type String --overwrite --value "Your updated instructions..."
+```
+
+### View tenant logs
+
+```bash
+aws logs filter-log-events \
+  --log-group-name "/openclaw/openclaw-multitenancy/agents" \
+  --filter-pattern '{ $.log_stream = "tenant_wa__8613800138000" }' \
+  --region us-east-1
+```
+
+### Update the container image
+
+```bash
+docker build --platform linux/arm64 -f agent-container/Dockerfile -t $ECR_URI:latest .
+docker push $ECR_URI:latest
+# AgentCore Runtime picks up the new image on the next invocation
+```
+
+---
+
+## Cost
+
+| Component | Cost |
+|---|---|
+| EC2 c7g.large (Graviton, always-on) | ~$35/month |
+| EBS 30GB gp3 | ~$2.40/month |
+| VPC Endpoints (optional) | ~$22/month |
+| AgentCore Runtime | Pay-per-invocation |
+| ECR storage | ~$0.10/GB/month |
+| CloudWatch Logs | Pay-per-GB |
+| Bedrock Nova 2 Lite | $0.30/$2.50 per 1M tokens |
+
+Light usage (100 conversations/day): ~$40-60/month total.
+
+---
 
 ## Cleanup
 
 ```bash
-# Delete CloudFormation stack (removes all resources)
-aws cloudformation delete-stack --stack-name openclaw-agentcore --region us-east-1
-
-# Wait for deletion
-aws cloudformation wait stack-delete-complete --stack-name openclaw-agentcore --region us-east-1
+aws bedrock-agentcore delete-agent-runtime --agent-runtime-id $RUNTIME_ID --region us-east-1
+aws cloudformation delete-stack --stack-name openclaw-multitenancy --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name openclaw-multitenancy --region us-east-1
 ```
 
-## Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-## License
-
-This deployment template is provided as-is. OpenClaw itself is licensed under its original license.
-
-## Resources
-
-- [OpenClaw Official Docs](https://docs.openclaw.ai/)
-- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
-- [Amazon Bedrock Docs](https://docs.aws.amazon.com/bedrock/)
-- [AgentCore Runtime Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore.html)
-- [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html)
-
-## Support
-
-- **OpenClaw Issues**: [GitHub Issues](https://github.com/openclaw/openclaw/issues)
-- **AWS Bedrock**: [AWS re:Post](https://repost.aws/tags/bedrock)
-- **This Project**: [GitHub Issues](https://github.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock/issues)
+ECR images and SSM parameters are not deleted automatically.
 
 ---
 
-**Deploy your personal AI assistant on AWS infrastructure you control with serverless agent execution.**
+## Resources
+
+- [OpenClaw Documentation](https://docs.openclaw.ai/)
+- [Amazon Bedrock AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime.html)
+- [Microsoft OpenClaw Security Guidance](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk)
+- [OpenClaw Security Policy](https://github.com/openclaw/openclaw/security)
