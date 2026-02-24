@@ -321,6 +321,12 @@ openclaw skills install voice-generation
 openclaw skills installed
 ```
 
+#### Community Skills
+
+For optional third-party integrations, see [Community Skills](COMMUNITY_SKILLS.md).
+
+Featured: [openclaw-aws-backup-skill](https://github.com/genedragon/openclaw-aws-backup-skill) for encrypted S3 backup/restore workflows.
+
 #### Custom Prompts
 
 Create `~/.openclaw/workspace/SOUL.md` on the instance:
@@ -588,4 +594,3 @@ This deployment template is provided as-is. OpenClaw itself is licensed under it
 ---
 
 **Deploy your personal AI assistant on AWS infrastructure you control with serverless agent execution.**
-

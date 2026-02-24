@@ -275,6 +275,12 @@ openclaw doesn't have official Lark/Feishu support, but the community has create
 
 Install on your EC2 instance to forward messages between Feishu and openclaw via WebSocket. No public IP or domain required.
 
+#### Community Skills
+
+Looking for optional third-party extensions? See [Community Skills](COMMUNITY_SKILLS.md).
+
+Featured: [openclaw-aws-backup-skill](https://github.com/genedragon/openclaw-aws-backup-skill) for S3 backup/restore with optional KMS encryption.
+
 ### Using openclaw
 
 #### Send Messages
