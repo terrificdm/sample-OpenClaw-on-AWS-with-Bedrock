@@ -68,13 +68,22 @@
 
 ### ⚡ One-Click Deploy (Recommended - 10-15 minutes to ready!)
 
+Click to deploy:
+
+| Region | Launch Stack |
+|--------|--------------|
+| **US West (Oregon)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://raw.githubusercontent.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock/main/clawdbot-bedrock-agentcore.yaml) |
+| **US East (N. Virginia)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://raw.githubusercontent.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock/main/clawdbot-bedrock-agentcore.yaml) |
+| **EU (Ireland)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://raw.githubusercontent.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock/main/clawdbot-bedrock-agentcore.yaml) |
+| **Asia Pacific (Tokyo)** | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/create/review?stackName=openclaw-agentcore&templateURL=https://raw.githubusercontent.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock/main/clawdbot-bedrock-agentcore.yaml) |
+
+### Alternative: CLI Deployment
+
 **Prerequisites**:
 - AWS CLI configured (`aws configure`)
 - Docker installed and running
 - EC2 Key Pair created in your target region
 - AWS account with permissions for CloudFormation, EC2, VPC, IAM, ECR, Bedrock AgentCore Runtime, and Bedrock model access
-
-**Manual deployment**:
 
 ```bash
 # 1. Build and push container
@@ -589,7 +598,7 @@ This deployment template is provided as-is. OpenClaw itself is licensed under it
 
 - **OpenClaw Issues**: [GitHub Issues](https://github.com/openclaw/openclaw/issues)
 - **AWS Bedrock**: [AWS re:Post](https://repost.aws/tags/bedrock)
-- **This Project**: [GitHub Issues](https://github.com/Vivek0712/OpenClaw-on-AWS-with-Bedrock/issues)
+- **This Project**: [GitHub Issues](https://github.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock/issues)
 
 ---
 
