@@ -283,6 +283,9 @@ Looking for optional third-party extensions? See [Community Skills](COMMUNITY_SK
 
 Featured: [openclaw-aws-backup-skill](https://github.com/genedragon/openclaw-aws-backup-skill) for S3 backup/restore with optional KMS encryption.
 
+#### Kiro CLI Skill 
+Featured: [openclaw-kirocli-skill](skills/openclaw-kirocli-skill/) - Deep integration with AWS Kiro CLI for AI-powered coding tasks.
+
 ### Using openclaw
 
 #### Send Messages
